@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<!--
+  BLUE VELVET LOUNGE - 2D pixel-art jazz lounge casino (single file, zero dependencies)
+
+  HOW TO RUN:  unzip, then double-click index.html (any modern browser). No server needed.
+  HOW TO TEST QUICKLY:
+    - Walk with WASD / arrows, press E or Space near an NPC or table.
+    - Blackjack table (left) & Roulette (center): bet, play, win/lose cash.
+    - Fingers' kiosk (bottom-left) sells upgrades. $400 Velvet Suit opens the red VIP curtain (right).
+    - Game over test: bet everything at a table and lose -> cash is exactly $0 -> GAME OVER -> Restart.
+    - M = mute/unmute jazz. Esc = leave a table.
+-->
+<html lang="en"><head><meta charset="utf-8"><title>Blue Velvet Lounge</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0}
+body{background:#05050c;display:flex;align-items:center;justify-content:center;height:100vh;overflow:hidden;font-family:"Courier New",monospace;color:#f3e6c4}
+#wrap{position:relative;width:min(100vw,calc(100vh*5/3));aspect-ratio:5/3;container-type:inline-size;background:#000;overflow:hidden}
+canvas{width:100%;height:100%;image-rendering:pixelated;display:block}
+.ov{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center}
+.px{background:#14102a;border:.5cqw solid #e8a33d;box-shadow:0 0 0 .5cqw #1b0f2e,0 0 3cqw #e8a33d66}
+button{font:inherit;background:#2a1a4a;color:#ffd27a;border:.35cqw solid #e8a33d;padding:.5cqw 1.2cqw;cursor:pointer;margin:.3cqw;transition:.12s}
+button:hover:not(:disabled){background:#e8a33d;color:#14102a;transform:translateY(-.2cqw)}
+button:disabled{opacity:.35;cursor:not-allowed}
+#hud{position:absolute;left:1cqw;top:1cqw;right:1cqw;display:flex;justify-content:space-between;align-items:center;font-size:2.2cqw;z-index:5;pointer-events:none}
+#hud>div{padding:.4cqw 1.2cqw;background:#0b0818cc;border:.3cqw solid #e8a33d}
+#cash{color:#ffd27a;font-weight:bold;font-size:2.8cqw}#cash.flash{animation:fl .5s}
+@keyframes fl{50%{color:#fff;text-shadow:0 0 2cqw #fff}}
+#mute{pointer-events:auto;margin:0;font-size:1.8cqw}
+#prompt{position:absolute;bottom:1.5cqw;left:50%;transform:translateX(-50%);background:#0b0818dd;border:.3cqw solid #5fd1ff;color:#bff;padding:.5cqw 1.5cqw;font-size:2cqw;display:none;z-index:4}
+#dialog{position:absolute;left:6cqw;right:6cqw;bottom:2cqw;padding:1.5cqw 2cqw;font-size:2.2cqw;display:none;z-index:6}
+#dialog b{color:#ffd27a}#dialog p{margin:.8cqw 0;line-height:1.35}#dialog i{color:#7fd;font-size:1.7cqw}
+#modal{background:#000a;z-index:7;padding-top:4cqw}
+.panel{width:88cqw;max-height:92%;overflow:auto;padding:1.5cqw 2cqw;font-size:2cqw}
+.panel h2{color:#ffd27a;font-size:2.8cqw}.panel small{color:#9aa;font-size:1.6cqw}
+.row{margin:.8cqw 0;text-align:left}.msg{color:#7fe3a0;min-height:2.6cqw;margin:.6cqw 0}.q{color:#c9a;font-size:1.6cqw;font-style:italic}
+.card{display:inline-block;background:#f5ecd5;color:#111;border:.3cqw solid #000;padding:.4cqw .8cqw;margin:.3cqw;min-width:4.4cqw;text-align:center;font-weight:bold}
+.card.r{color:#c0182c}.card.back{background:#6a1628;color:#a33}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:.3cqw;margin:.6cqw 0}
+.grid button{margin:0;padding:.3cqw;font-size:1.5cqw;color:#fff}
+.rd{background:#a01326!important}.bk{background:#15131c!important}.g{background:#0f7a3a!important}
+.grid .z{grid-column:1/-1}
+.item{display:flex;justify-content:space-between;align-items:center;text-align:left;margin:.6cqw 0;border-bottom:.2cqw dashed #5b4a7a;padding-bottom:.6cqw}
+#title{background:radial-gradient(#1a1040dd,#05050cf5);z-index:9;display:flex;flex-direction:column;cursor:pointer}
+#title h1{font-size:7cqw;color:#ffd27a;text-shadow:.5cqw .5cqw #a01326,0 0 3cqw #e8a33d;letter-spacing:.8cqw}
+#title p{font-size:2.2cqw;margin:1cqw;color:#bfe}.blink{animation:bl 1s steps(2) infinite}@keyframes bl{50%{opacity:0}}
+#over{background:repeating-linear-gradient(#0009 0 .4cqw,#000e .4cqw .8cqw);z-index:10;flex-direction:column;animation:fade 1.2s}
+@keyframes fade{from{background:#000;opacity:0}}
+#over h1{font-size:9cqw;color:#ff2a4d;animation:gl .35s infinite;letter-spacing:.6cqw}
+@keyframes gl{0%{text-shadow:.6cqw 0 #0ff,-.6cqw 0 #f0f;transform:translate(0)}25%{text-shadow:-.8cqw .2cqw #0ff,.8cqw -.2cqw #f0f;transform:translate(.4cqw,-.3cqw)}50%{text-shadow:.3cqw -.4cqw #0ff,-.5cqw .4cqw #f0f;transform:translate(-.5cqw,.2cqw)}100%{text-shadow:.6cqw 0 #0ff,-.6cqw 0 #f0f}}
+#over p{font-size:2.4cqw;margin:1.5cqw;color:#cbb}
+</style></head><body>
+<div id="wrap">
+<canvas id="c" width="320" height="192"></canvas>
+<div id="hud"><div>CASH <span id="cash">$500</span> <span id="ups" style="font-size:1.8cqw"></span></div><div style="padding:0;border:0;background:none"><button id="mute">♪ MUSIC: ON [M]</button></div></div>
+<div id="prompt"></div>
+<div id="dialog" class="px"></div>
+<div id="modal" class="ov"></div>
+<div id="title" class="ov" style="display:flex"><h1>BLUE VELVET</h1><h1 style="font-size:4cqw;letter-spacing:2cqw;color:#5fd1ff;text-shadow:0 0 2cqw #5fd1ff">LOUNGE</h1><p>WASD / Arrows: walk &nbsp; E / Space: interact &nbsp; M: mute</p><p>Start with $500. Hit $0 and the lights go out.</p><p class="blink">▶ CLICK OR PRESS ANY KEY ◀</p></div>
+<div id="over" class="ov"><h1>GAME OVER</h1><p>Your last chip is gone. Joe kills the lights.</p><button id="restart" style="font-size:2.6cqw">↻ RESTART</button></div>
+</div>
+<script>
+(()=>{
+const W=320,H=192,START=500;
+const cv=document.getElementById('c'),g=cv.getContext('2d');g.imageSmoothingEnabled=false;
+const $=id=>document.getElementById(id);
+let S,mode='title',cur=null,modalBusy=false,dlg=null;
+const keys={};
+function newState(){S={cash:START,px:160,py:166,f:1,walk:0,up:{speed:0,charm:0,suit:0}};hud();}
+function hud(){const c=$('cash');c.textContent='$'+S.cash;c.classList.remove('flash');void c.offsetWidth;c.classList.add('flash');
+ $('ups').textContent=(S.up.speed?'👟':'')+(S.up.charm?'🍀':'')+(S.up.suit?'🎩':'');}
+
+/* ================= AUDIO: procedural swing jazz ================= */
+let AC,master,bus,nb,muted=false,nextT=0,bi=0,lastLead=3;
+const mf=m=>440*Math.pow(2,(m-69)/12),BD=60/112;
+// Dm7 | G7 | Cmaj7 | A7   (r=bass root, c=comp voicing, q=chord intervals)
+const CH=[{r:38,c:[53,57,60,64],q:[0,3,7,10]},{r:43,c:[53,59,62,67],q:[0,4,7,10]},{r:36,c:[52,55,59,62],q:[0,4,7,11]},{r:45,c:[55,61,64,69],q:[0,4,7,10]}];
+function initAudio(){
+ if(AC)return;AC=new(window.AudioContext||window.webkitAudioContext)();
+ master=AC.createGain();master.gain.value=muted?0:.5;
+ const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=4500;
+ bus=AC.createGain();const dl=AC.createDelay();dl.delayTime.value=.33;const fb=AC.createGain();fb.gain.value=.28;const wet=AC.createGain();wet.gain.value=.22;
+ bus.connect(lp);bus.connect(dl);dl.connect(fb);fb.connect(dl);dl.connect(wet);wet.connect(lp);lp.connect(master);master.connect(AC.destination);
+ nb=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=nb.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+ nextT=AC.currentTime+.1;setInterval(()=>{while(nextT<AC.currentTime+.25){beat(bi++,nextT);nextT+=BD}},50);
+}
+function tone(f,t,d,type,v,dest){const o=AC.createOscillator(),gn=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);
+ gn.gain.setValueAtTime(.0001,t);gn.gain.linearRampToValueAtTime(v,t+.015);gn.gain.exponentialRampToValueAtTime(.0001,t+d);
+ o.connect(gn);gn.connect(dest||bus);o.start(t);o.stop(t+d+.05);return o}
+function nz(t,d,v,hp){const s=AC.createBufferSource();s.buffer=nb;const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=hp;
+ const gn=AC.createGain();gn.gain.setValueAtTime(v,t);gn.gain.exponentialRampToValueAtTime(.0001,t+d);s.connect(f);f.connect(gn);gn.connect(bus);s.start(t);s.stop(t+d)}
+function beat(i,t){
+ const bar=Math.floor(i/4)%4,b=i%4,ch=CH[bar],nx=CH[(bar+1)%4],sw=BD*2/3;
+ const n=b==0?ch.r:b==1?ch.r+ch.q[1]:b==2?ch.r+ch.q[2]:(nx.r>ch.r?nx.r-1:nx.r+1);
+ tone(mf(n),t,BD*.9,'triangle',.55);                        // walking bass
+ nz(t,.09,.05,7000);if(b%2==1)nz(t+sw,.07,.035,7000);       // swung ride
+ if(b%2==1)nz(t,.06,.05,2500);                              // brushed snare/hat on 2 & 4
+ if(b==0)tone(70,t,.12,'sine',.25);                         // soft kick
+ const chord=(tt,d)=>ch.c.forEach(m=>{tone(mf(m),tt,d,'sine',.06);tone(mf(m)*2,tt,d*.6,'triangle',.012)});
+ if(b==0)chord(t,BD*1.3);if(b==1&&Math.random()<.55)chord(t+sw,BD*.6);
+ if(Math.floor(i/16)%3!==0){                                // sax-ish lead, breathing every few bars
+  const pool=[...ch.c.map(m=>m+12),ch.c[1]+14,ch.c[2]+14].sort((a,b)=>a-b);
+  const play=(tt,len)=>{let k=pool.reduce((bi2,m,ix)=>Math.abs(m-lastLead)<Math.abs(pool[bi2]-lastLead)?ix:bi2,0);
+   k=Math.max(0,Math.min(pool.length-1,k+Math.floor(Math.random()*5)-2));lastLead=pool[k];
+   const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=1500;f.connect(bus);
+   const o=tone(mf(lastLead),tt,len,'sawtooth',.05,f);const lfo=AC.createOscillator(),lg=AC.createGain();lfo.frequency.value=5.5;lg.gain.value=5;lfo.connect(lg);lg.connect(o.frequency);lfo.start(tt);lfo.stop(tt+len+.05)};
+  if(Math.random()<.55)play(t,BD*.8);if(Math.random()<.3)play(t+sw,BD*.3);
+ }
+}
+function sfx(k){if(!AC||muted)return;const t=AC.currentTime;
+ if(k=='click')tone(660,t,.05,'square',.05);if(k=='card'){nz(t,.06,.15,1500)}if(k=='tick')tone(900,t,.03,'square',.04);
+ if(k=='win'){[523,659,784,1047].forEach((f,i)=>tone(f,t+i*.07,.2,'square',.06))}
+ if(k=='lose'){[300,230,170].forEach((f,i)=>tone(f,t+i*.12,.25,'sawtooth',.05))}}
+function setMute(m){muted=m;if(master)master.gain.value=m?0:(mode=='over'?.18:.5);$('mute').textContent='♪ MUSIC: '+(m?'OFF':'ON')+' [M]'}
+$('mute').onclick=e=>{setMute(!muted);e.target.blur()};
+
+/* ================= WORLD DATA ================= */
+const REDS=new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+const NPCS=[
+ {name:'Smoky Joe (Bartender)',x:50,y:47,sk:'#c9a07a',bd:'#2c2b3a',ht:'#111',lines:["Name's Joe. I pour, you lose. Everybody leaves happy.","Blackjack out front pays 6:5. Sounds fine until you do the math.","Folks say a Velvet Suit gets you past the red curtain. Real money lives back there."]},
+ {name:'Fingers McGee (Shop)',x:22,y:150,sk:'#d9b38c',bd:'#4a6a2a',ht:'#a58b2c',shop:1,lines:["Psst. Fingers McGee. I sell what the house won't advertise.","Take a look, friend."]},
+ {name:'Mr. Vance (High Roller)',x:208,y:152,sk:'#e0b890',bd:'#d8d2c0',ht:'#e8e0c8',lines:["Don't look at my chips. Look at yours. They look... lonely.","Roulette is an honest lie. Red, black, it all ends in green eventually.","A Lucky Charm? Superstition. ...I own three."]},
+ {name:'The Drifter',x:288,y:166,sk:'#b88a68',bd:'#5a3a2a',ht:'#333',lines:["Came in with a thousand. Don't ask where it went.","When the bass walks, the dealer talks. Listen to the music, kid.","Hit zero and Joe turns off the lights. Permanently."]},
+ {name:'Lady Ember (VIP Host)',x:302,y:108,sk:'#e8c0a0',bd:'#a01a4a',ht:'#2a0a1a',vip:1,lines:["Welcome to the back room, darling.","Blackjack here pays three to two, and the limit is five grand. Try not to faint.","The house always smiles. That's the dangerous part."]}
+];
+const DEALERS=[{x:70,y:112,bd:'#1d2b4f',ht:'#111'},{x:166,y:142,bd:'#4f1d2b',ht:'#222'},{x:278,y:80,bd:'#2a1d4f',ht:'#c9a227'}];
+const TABLES=[
+ {id:'bj',name:'Blackjack',r:[46,108,48,26],felt:'#0f5a3a'},
+ {id:'rou',name:'Roulette',r:[140,138,52,24],felt:'#0d4a6a'},
+ {id:'vbj',name:'VIP Blackjack',r:[254,76,48,24],felt:'#4a1060',vip:1}];
+const LIGHTS=[[70,100,62,'#ffb347',.5],[166,132,62,'#ffb347',.45],[278,70,56,'#ff5a7a',.4],[160,30,80,'#ff8a3a',.4],[55,40,50,'#ffd27a',.35],[22,146,36,'#7aff9a',.3]];
+function solids(){const a=[[12,52,104,12],[46,108,48,26],[140,138,52,24],[8,152,30,14],[224,48,4,48],[224,120,96,4],[254,76,48,24]];
+ if(!S.up.suit)a.push([224,96,4,24]);NPCS.forEach(n=>a.push([n.x-4,n.y-3,8,4]));return a}
+
+/* ================= UPDATE ================= */
+function hit(x,y,w,h){for(const s of solids())if(x<s[0]+s[2]&&x+w>s[0]&&y<s[1]+s[3]&&y+h>s[1])return true;return false}
+function update(dt){
+ let dx=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),dy=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0);
+ if(dx||dy){const l=Math.hypot(dx,dy),sp=52*(1+.5*S.up.speed)*dt;dx=dx/l*sp;dy=dy/l*sp;if(dx)S.f=dx>0?1:-1;
+  let nx=Math.max(8,Math.min(312,S.px+dx));if(!hit(nx-4,S.py-3,8,4))S.px=nx;
+  let ny=Math.max(54,Math.min(188,S.py+dy));if(!hit(S.px-4,ny-3,8,4))S.py=ny;S.walk+=dt*(8+4*S.up.speed)}
+ else S.walk=0;
+ const n=near(),p=$('prompt');if(n){p.style.display='block';p.textContent='[E] '+n.label}else p.style.display='none';
+}
+function near(){const cx=S.px,cy=S.py-4;let best=null,bd=1e9;
+ for(const n of NPCS){const d=Math.hypot(n.x-cx,n.y-4-cy);if(d<26&&d<bd){bd=d;best={k:'npc',o:n,label:'Talk to '+n.name.split(' (')[0]}}}
+ for(const t of TABLES){if(t.vip&&!S.up.suit)continue;const[x,y,w,h]=t.r,d=Math.hypot(Math.max(x-cx,0,cx-x-w),Math.max(y-cy,0,cy-y-h));
+  if(d<14&&d<bd){bd=d;best={k:'tbl',o:t,label:'Play '+t.name}}}
+ if(!S.up.suit&&Math.hypot(224-cx,108-cy)<20&&20<bd)best={k:'rope',label:'Inspect velvet rope'};
+ return best}
+function interact(){const n=near();if(!n)return;sfx('click');
+ if(n.k=='npc')say(n.o.name,n.o.lines,n.o.shop?openShop:null);
+ else if(n.k=='rope')say('Velvet Rope',['The tag reads: "VIP - SUIT REQUIRED."','Fingers McGee, by the kiosk, sells the Velvet Suit.']);
+ else if(n.o.id=='rou')openRou();else openBJ(!!n.o.vip)}
+function say(name,lines,after){dlg={name,lines,i:0,after};mode='dialog';showDlg()}
+function showDlg(){const d=$('dialog');d.style.display='block';$('prompt').style.display='none';d.innerHTML=`<b>${dlg.name}</b><p>${dlg.lines[dlg.i]}</p><i>[E] ${dlg.i<dlg.lines.length-1?'next':'close'}</i>`}
+function advance(){sfx('click');if(++dlg.i>=dlg.lines.length){$('dialog').style.display='none';const a=dlg.after;dlg=null;mode='play';if(a)a()}else showDlg()}
+
+/* ================= MODAL / TABLES ================= */
+function openModal(){$('modal').style.display='flex';mode='modal';$('prompt').style.display='none'}
+function leave(){if(modalBusy)return;if(cur=='rou')refund();$('modal').style.display='none';mode='play';cur=null}
+function refund(){for(const k in ro.bets)S.cash+=ro.bets[k];ro.bets={};hud()}
+$('modal').addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;sfx('click');
+ if(b.dataset.a=='leave')leave();else({bj:bjAct,rou:rouAct,shop:shopAct})[cur](b.dataset.a,b.dataset.v)});
+function broke(){setTimeout(()=>{if(S.cash===0)gameOver()},1200)}
+
+/* ---- Blackjack ---- */
+const SU=['♠','♥','♦','♣'],RK=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+let bj;
+const hv=h=>{let t=0,a=0;for(const c of h){t+=c.r>=10?10:c.r==1?(a++,11):c.r}while(t>21&&a){t-=10;a--}return t};
+function mkDeck(){const d=[];for(let s=0;s<4;s++)for(let r=1;r<=13;r++)d.push({r,s});for(let i=d.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[d[i],d[j]]=[d[j],d[i]]}return d}
+function openBJ(vip){cur='bj';bj={vip,max:vip?5000:250,min:Math.min(vip?100:5,S.cash),mult:vip?1.5:1.2,bet:0,last:0,ph:'bet',p:[],d:[],deck:[],msg:vip&&S.cash<100?'VIP minimum is $100.':'Place your bet.',q:vip?'"Gold looks good on you."':'"Cards don\'t care how you feel."'};bjR();openModal()}
+const cardH=(c,hide)=>hide?'<span class="card back">▒▒</span>':`<span class="card ${c.s==1||c.s==2?'r':''}">${RK[c.r-1]}${SU[c.s]}</span>`;
+function bjR(){const b=bj,play=b.ph=='play';
+ const dt=b.ph=='bet'?'':play?hv([b.d[0]]):hv(b.d);
+ let ctl='';
+ if(b.ph=='bet')ctl=[10,50,100,500].map(v=>`<button data-a="chip" data-v="${v}" ${b.bet+1>S.cash||b.bet>=b.max?'disabled':''}>+$${v}</button>`).join('')+`<button data-a="clear">CLEAR</button><button data-a="deal" ${b.bet<b.min||b.bet<1||b.bet>S.cash?'disabled':''}>DEAL ($${b.bet})</button>`;
+ else if(play)ctl=`<button data-a="hit">HIT</button><button data-a="stand">STAND</button><button data-a="dbl" ${b.p.length==2&&S.cash>=b.bet?'':'disabled'}>DOUBLE DOWN</button>`;
+ else ctl=`<button data-a="again" ${S.cash<b.min||S.cash<1?'disabled':''}>NEXT HAND</button>`;
+ $('modal').innerHTML=`<div class="panel px"><h2>${b.vip?'★ VIP ':''}BLACKJACK <small>blackjack pays ${b.vip?'3:2':'6:5'} · bet $${b.min}-$${b.max} · dealer stands on 17</small></h2>
+ <div class="row">Dealer ${dt!==''?'('+dt+')':''}: ${b.d.map((c,i)=>cardH(c,play&&i==1)).join('')}</div>
+ <div class="row">You ${b.p.length?'('+hv(b.p)+')':''}: ${b.p.map(c=>cardH(c)).join('')}</div>
+ <div class="msg">${b.msg}</div><div class="q">${b.q}</div><div class="row">Cash: $${S.cash} ${b.ph=='bet'?'· Bet: $'+b.bet:'· Bet: $'+b.bet}</div>
+ <div>${ctl}<button data-a="leave" ${b.ph=='play'?'disabled':''}>LEAVE [Esc]</button></div></div>`}
+function bjDraw(h){let c=bj.deck.pop();h.push(c);
+ if(h===bj.p&&S.up.charm&&hv(h)>21&&Math.random()<.3){h.pop();bj.deck.unshift(c);const i=bj.deck.findIndex(x=>hv([...h,x])<=21);
+  if(i>=0){h.push(bj.deck.splice(i,1)[0]);bj.msg='🍀 Lucky Charm glows!'}else h.push(bj.deck.shift())}sfx('card')}
+function bjAct(a,v){const b=bj;
+ if(a=='chip')b.bet=Math.min(b.bet+(+v),S.cash,b.max);
+ else if(a=='clear')b.bet=0;
+ else if(a=='again'){b.ph='bet';b.p=[];b.d=[];b.bet=Math.min(b.last,S.cash,b.max);b.min=Math.min(b.vip?100:5,S.cash);b.msg='Place your bet.'}
+ else if(a=='deal'){S.cash-=b.bet;b.last=b.bet;hud();b.deck=mkDeck();b.p=[];b.d=[];bjDraw(b.p);bjDraw(b.d);bjDraw(b.p);bjDraw(b.d);b.ph='play';b.msg='';
+  const pb=hv(b.p)==21,db=hv(b.d)==21;if(pb||db)return bjEnd(pb&&db?'push':pb?'bj':'lose')}
+ else if(a=='hit'){bjDraw(b.p);if(hv(b.p)>21)return bjEnd('bust');if(hv(b.p)==21)return bjStand()}
+ else if(a=='stand')return bjStand();
+ else if(a=='dbl'){S.cash-=b.bet;b.bet*=2;hud();bjDraw(b.p);if(hv(b.p)>21)return bjEnd('bust');return bjStand()}
+ bjR()}
+function bjStand(){const b=bj;while(hv(b.d)<17)bjDraw(b.d);const p=hv(b.p),d=hv(b.d);bjEnd(d>21||p>d?'win':p==d?'push':'lose')}
+function bjEnd(r){const b=bj;const pay={bj:Math.floor(b.bet*(1+b.mult)),win:b.bet*2,push:b.bet,lose:0,bust:0}[r];S.cash+=pay;b.ph='done';hud();
+ const W=["Beginner's luck, sweetheart.","The house tips its hat."],L=["The house wins. It always does.","Tough break, kid."];
+ b.msg={bj:'BLACKJACK! +$'+(pay-b.bet),win:'You win +$'+(pay-b.bet),push:'Push. Bet returned.',lose:'Dealer wins. -$'+b.bet,bust:'BUST! -$'+b.bet}[r];
+ b.q='"'+(pay>b.bet?W:L)[Math.random()*2|0]+'"';if(r=='push')b.q='"Nobody wins. Nobody learns."';
+ sfx(pay>b.bet?'win':r=='push'?'click':'lose');bjR();if(S.cash===0)broke()}
+
+/* ---- Roulette ---- */
+let ro;
+const tot=()=>Object.values(ro.bets).reduce((a,b)=>a+b,0);
+function openRou(){cur='rou';ro={chip:10,bets:{},last:{},spin:false,n:null,hist:[],msg:'Place your chips, then SPIN.'};rouR();openModal()}
+function rouR(){const sp=(k,l,c='')=>`<button class="${c}" data-a="bet" data-v="${k}" ${ro.spin?'disabled':''}>${l}${ro.bets[k]?`<br><em>$${ro.bets[k]}</em>`:''}</button>`;
+ const col=ro.n===null?'':ro.n===0?'g':REDS.has(ro.n)?'rd':'bk';let nums='';for(let i=0;i<=36;i++)nums+=sp('n'+i,i,(i==0?'g z':REDS.has(i)?'rd':'bk'));
+ $('modal').innerHTML=`<div class="panel px"><h2>ROULETTE <small>even-money 1:1 · single number 35:1 · max $250 per spot</small></h2>
+ <div class="row">Ball: <span class="card ${col}" style="color:#fff;min-width:7cqw;font-size:3cqw">${ro.n===null?'--':ro.n}</span> History: ${ro.hist.map(n=>`<span class="card ${n&&REDS.has(n)?'r':''}" style="min-width:3cqw;padding:.2cqw">${n}</span>`).join('')}</div>
+ <div>Chip: ${[10,50,100].map(v=>`<button data-a="chip" data-v="${v}" ${ro.chip==v?'style="background:#e8a33d;color:#14102a"':''} ${ro.spin?'disabled':''}>$${v}</button>`).join('')}</div>
+ <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:.3cqw;margin:.5cqw 0">${sp('red','RED','rd')}${sp('black','BLACK','bk')}${sp('odd','ODD')}${sp('even','EVEN')}${sp('low','1-18')}${sp('high','19-36')}</div>
+ <div class="grid">${nums}</div><div class="msg">${ro.msg}</div><div class="row">Cash: $${S.cash} · On table: $${tot()}</div>
+ <div><button data-a="spin" ${ro.spin||!tot()?'disabled':''}>SPIN</button><button data-a="clear" ${ro.spin?'disabled':''}>CLEAR</button><button data-a="rebet" ${ro.spin||!Object.keys(ro.last).length?'disabled':''}>REBET</button><button data-a="leave" ${ro.spin?'disabled':''}>LEAVE [Esc]</button></div></div>`}
+function pay(k,n){if(k[0]=='n')return +k.slice(1)===n?36:0;if(!n)return 0;const r=REDS.has(n);
+ return{red:r,black:!r,odd:n%2==1,even:n%2==0,low:n<=18,high:n>=19}[k]?2:0}
+function rouAct(a,v){
+ if(a=='chip')ro.chip=+v;
+ else if(a=='bet'){if(S.cash<ro.chip||(ro.bets[v]||0)+ro.chip>250)return;S.cash-=ro.chip;ro.bets[v]=(ro.bets[v]||0)+ro.chip;hud()}
+ else if(a=='clear')refund();
+ else if(a=='rebet'){refund();for(const k in ro.last)if(S.cash>=ro.last[k]){S.cash-=ro.last[k];ro.bets[k]=ro.last[k]}hud()}
+ else if(a=='spin'){ro.last={...ro.bets};ro.spin=true;modalBusy=true;ro.msg='No more bets...';let i=0;
+  const step=()=>{ro.n=Math.random()*37|0;sfx('tick');rouR();if(++i<22)return setTimeout(step,60+i*14);
+   const n=Math.random()*37|0;ro.n=n;let win=0;for(const k in ro.bets)win+=ro.bets[k]*pay(k,n);const stake=tot();
+   S.cash+=win;ro.hist.unshift(n);ro.hist=ro.hist.slice(0,10);ro.bets={};ro.spin=false;modalBusy=false;hud();
+   ro.msg=`Ball lands on ${n}. `+(win>stake?`You win +$${win-stake}!`:win==stake?'You break even.':`You lose -$${stake-win}.`);
+   sfx(win>stake?'win':'lose');rouR();if(S.cash===0)broke()};step();return}
+ rouR()}
+
+/* ---- Shop ---- */
+const ITEMS=[{k:'speed',n:'Soft-Sole Loafers',p:150,d:'Walk 50% faster.'},{k:'charm',n:'Lucky Charm',p:300,d:'Blackjack: 30% chance to dodge a bust when you hit.'},{k:'suit',n:'Velvet Suit',p:400,d:'Unlocks the red VIP curtain: 3:2 blackjack, $5000 max bets.'}];
+let shopMsg='';
+function openShop(){cur='shop';shopR();openModal()}
+function shopR(){$('modal').innerHTML=`<div class="panel px"><h2>FINGERS' KIOSK <small>cash: $${S.cash}</small></h2>`+ITEMS.map(i=>`<div class="item"><span><b>${i.n}</b> - $${i.p}<br><small>${i.d}</small></span>${S.up[i.k]?'<b style="color:#7fe3a0">OWNED</b>':`<button data-a="buy" data-v="${i.k}" ${S.cash>i.p?'':'disabled'}>BUY</button>`}</div>`).join('')+`<div class="msg">${shopMsg||'(You must keep at least $1 after buying.)'}</div><button data-a="leave">LEAVE [Esc]</button></div>`}
+function shopAct(a,v){if(a!='buy')return;const it=ITEMS.find(i=>i.k==v);if(S.cash<=it.p||S.up[v])return;S.cash-=it.p;S.up[v]=1;hud();sfx('win');shopMsg=it.n+' acquired!';shopR()}
+
+/* ================= GAME OVER / RESTART ================= */
+function gameOver(){if(mode=='over'||S.cash!==0)return;modalBusy=false;$('modal').style.display='none';$('dialog').style.display='none';$('prompt').style.display='none';mode='over';$('over').style.display='flex';sfx('lose');if(master&&!muted)master.gain.value=.18}
+$('restart').onclick=()=>{newState();shopMsg='';$('over').style.display='none';mode='play';cur=null;if(master&&!muted)master.gain.value=.5}
+
+/* ================= RENDER (all pixel art is procedural) ================= */
+const R=(c,x,y,w,h)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+const vig=document.createElement('canvas');vig.width=W;vig.height=H;
+{const v=vig.getContext('2d'),gr=v.createRadialGradient(160,100,60,160,100,210);gr.addColorStop(0,'rgba(5,3,20,0)');gr.addColorStop(1,'rgba(5,3,20,.75)');v.fillStyle=gr;v.fillRect(0,0,W,H)}
+const smoke=Array.from({length:26},()=>({x:Math.random()*W,y:Math.random()*H,s:.5+Math.random()*.8,o:Math.random()*6}));
+function person(x,y,sk,bd,ht,o={}){const b=o.bob||0,w=o.w||0,f=o.f||0;
+ g.globalAlpha=.3;R('#000',x-4,y-1,8,2);g.globalAlpha=1;
+ R('#15121f',x-3,y-4+(w>0),2,4-(w>0));R('#15121f',x+1,y-4+(w<0),2,4-(w<0));
+ R(bd,x-4,y-10-b,8,6);R(sk,x-5,y-9-b,1,4);R(sk,x+4,y-9-b,1,4);R(sk,x-3,y-14-b,6,4);
+ R(ht,x-4,y-15-b,8,2);R(ht,x-3,y-17-b,6,2);R('#111',x-2+f,y-12-b,1,1);R('#111',x+1+f,y-12-b,1,1);R('#e8d27a',x,y-9-b,1,3)}
+function glow(x,y,r,c,a){const gr=g.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,c);gr.addColorStop(1,'rgba(0,0,0,0)');g.globalAlpha=a;g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);g.globalAlpha=1}
+function drawTable(t,tm){const[x,y,w,h]=t.r;R('#2a160a',x-2,y-2,w+4,h+6);R(t.felt,x,y,w,h);R('#5a3418',x-2,y+h,w+4,4);R('rgba(255,255,255,.18)',x+3,y+3,w-6,1);
+ if(t.id=='rou'){g.fillStyle='#2a1408';g.beginPath();g.arc(x+15,y+12,9,0,7);g.fill();for(let i=0;i<8;i++){g.fillStyle=i%2?'#c01830':'#101018';g.beginPath();g.moveTo(x+15,y+12);g.arc(x+15,y+12,7,tm*2+i*.785,tm*2+(i+1)*.785);g.fill()}R('#ffd27a',x+14,y+11,2,2);
+  for(let i=0;i<5;i++)R(i%2?'#c01830':'#222',x+32+i*3,y+6,3,3)}
+ else{for(let i=0;i<3;i++){R('#f5ecd5',x+8+i*9,y+14,7,5);R('#111',x+9+i*9,y+15,1,1)}R('#ffd27a',x+w-12,y+5,5,3);R('#e04040',x+w-18,y+6,5,3);
+  if(t.vip){R('#ffd27a',x,y,w,1);R('#ffd27a',x,y+h-1,w,1)}}}
+function render(tm){
+ // back wall & wainscot
+ R('#2a1233',0,0,W,48);for(let x=0;x<W;x+=16)R('#34163f',x,0,8,34);R('#4a2a1a',0,34,W,14);R('#6a3d22',0,34,W,2);for(let x=0;x<W;x+=16)R('#3a2014',x+2,38,12,8);
+ // floor
+ for(let y=48;y<H;y+=16)for(let x=0;x<W;x+=16){const vip=x>=228&&y<120;g.fillStyle=vip?((x+y)/16%2?'#5a1020':'#6a1628'):((x+y)/16%2?'#1c1b3a':'#242250');g.fillRect(x,y,16,16)}
+ // stage + curtain + band
+ R('#7a1022',120,0,80,30);for(let x=122;x<200;x+=6)R('#5a0c18',x,0,2,30);R('#5a3a22',124,30,72,18);R('#7a5230',124,30,72,2);
+ // bar shelf & bottles
+ R('#3a2014',14,30,100,2);for(let i=0;i<14;i++)R(['#3aa','#a33','#da3','#3a5','#a3a'][i%5],16+i*7,22+(i%3),3,8-(i%3));
+ // neon
+ const fl=.8+.2*Math.sin(tm*17)*Math.sin(tm*3);g.globalAlpha=fl;g.font='bold 9px monospace';g.textAlign='center';g.fillStyle='#5fd1ff';g.fillText('BLUE VELVET',64,16);g.fillStyle='#ff5a9a';g.fillText('VIP',274,38);g.globalAlpha=1;
+ // bar counter & stools
+ R('#2a160a',12,52,104,14);R('#8a5a30',12,52,104,3);R('#4a2a14',12,58,104,8);for(let x=24;x<110;x+=24){R('#a01326',x-3,71,7,3);R('#444',x,74,1,6)}
+ // VIP walls
+ R('#3a1a2a',224,48,4,48);R('#3a1a2a',224,120,96,4);R('#ffd27a',224,48,4,1);
+ if(S.up.suit){R('#7a1022',224,96,3,5);R('#7a1022',224,115,3,5)}else{R('#a01326',224,96,4,24);R('#ffd27a',222,96,2,2);R('#ffd27a',222,118,2,2)}
+ // kiosk
+ R('#3a2a14',8,152,30,14);R('#7aff9a',10,154,26,3);R('#1a1a2a',10,158,26,6);
+ TABLES.forEach(t=>drawTable(t,tm));
+ // entities (y-sorted)
+ const L=[];
+ [[160,44,'#222','#2a3a7a','#111'],[140,44,'#c9a07a','#7a2a1a','#222'],[182,44,'#d9b38c','#2a5a4a','#a58b2c']].forEach(m=>L.push([m[1],()=>person(m[0],m[1],m[2],m[3],m[4],{bob:Math.sin(tm*6+m[0])>.5?1:0})]));
+ NPCS.forEach(n=>L.push([n.y,()=>person(n.x,n.y,n.sk,n.bd,n.ht,{f:S.px<n.x?-1:1,bob:Math.sin(tm*2+n.x)>.8?1:0})]));
+ DEALERS.forEach(d=>L.push([d.y,()=>person(d.x,d.y,'#e0b890',d.bd,d.ht)]));
+ const wk=S.walk?Math.sin(S.walk*2):0;
+ L.push([S.py,()=>person(S.px,S.py,'#e8b890',S.up.suit?'#6b1fa8':'#b3202f',S.up.suit?'#ffd27a':'#2a1a12',{f:S.f,w:wk>0?1:wk<0?-1:0,bob:S.walk&&Math.sin(S.walk*2)>.6?1:0})]);
+ L.sort((a,b)=>a[0]-b[0]).forEach(e=>e[1]());
+ // lighting
+ g.globalCompositeOperation='lighter';LIGHTS.forEach(l=>glow(l[0],l[1],l[2],l[3],l[4]*(.9+.1*Math.sin(tm*3+l[0]))));g.globalCompositeOperation='source-over';
+ // smoke
+ g.fillStyle='#ccd';for(const s of smoke){s.y-=s.s*.15;s.x+=Math.sin(tm+s.o)*.1;if(s.y<-4){s.y=H+2;s.x=Math.random()*W}g.globalAlpha=.12;g.fillRect(s.x|0,s.y|0,3,2)}g.globalAlpha=1;
+ g.drawImage(vig,0,0);
+}
+let lastT=performance.now();
+function loop(now){const dt=Math.min(.05,(now-lastT)/1000);lastT=now;if(mode=='play')update(dt);render(now/1000);requestAnimationFrame(loop)}
+
+/* ================= INPUT ================= */
+function startGame(){if(mode!='title')return;initAudio();if(AC.state=='suspended')AC.resume();$('title').style.display='none';mode='play'}
+addEventListener('keydown',e=>{const k=e.key.length==1?e.key.toLowerCase():e.key;
+ if(mode=='title'){startGame();e.preventDefault();return}
+ if(k=='m'){setMute(!muted);return}
+ if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)&&mode!='modal')e.preventDefault();
+ if(mode=='play'){keys[k]=true;if(k=='e'||k==' ')interact()}
+ else if(mode=='dialog'){if(k=='e'||k==' '||k=='Enter')advance()}
+ else if(mode=='modal'&&k=='Escape')leave()});
+addEventListener('keyup',e=>{keys[e.key.length==1?e.key.toLowerCase():e.key]=false});
+addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
+$('title').addEventListener('pointerdown',startGame);
+newState();requestAnimationFrame(loop);
+})();
+</script></body></html>
